@@ -403,6 +403,18 @@ api.nvim_create_autocmd('WinClosed', {
 })
 
 local first = api.nvim_get_current_win()
+-- A directory explorer can focus a float on UIEnter, before we attach.
+-- Give the launching pane an ordinary editor window, keeping float focus.
+local focused = first
+if not shown(first) then
+  for _, win in ipairs(api.nvim_tabpage_list_wins(0)) do
+    if shown(win) then
+      first = win
+      break
+    end
+  end
+end
 M.adopt(first, cols, rows)
+if focused ~= first then vim.rpcnotify(chan, 'neorex_entered', focused) end
 schedule_report()
 return { first, anchor_of(api.nvim_get_current_tabpage()) }

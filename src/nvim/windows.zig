@@ -289,6 +289,36 @@ const Harness = struct {
     }
 };
 
+test "setup with a focused startup float adopts the editor and preserves float focus" {
+    var buf: [1024]u8 = undefined;
+    var h: Harness = .{ .nvim = Nvim.spawn(testing.io, &.{ "nvim", "--clean", "--embed", "-n", "--cmd", "autocmd UIEnter * lua vim.api.nvim_open_win(vim.api.nvim_create_buf(false, true), true, {relative='editor', row=1, col=1, width=20, height=4})" }, &buf) catch |err| switch (err) {
+        error.FileNotFound => return error.SkipZigTest,
+        else => return err,
+    } };
+    defer h.deinit();
+    try h.nvim.uiAttach(40, 10, .{ .ext_multigrid = true });
+    // Directory explorers can already have focused a float before setup runs.
+    h.chan_id = try askChannel(&h.nvim);
+    try h.nvim.flush();
+    try testing.expect(try h.until(struct {
+        fn f(x: *Harness) bool {
+            if (x.wins[0] == 0 or x.kind(x.wins[0]) != .external) return false;
+            for (x.notes.items) |note| if (note == .float) return true;
+            return false;
+        }
+    }.f));
+    try testing.expectEqual(Grids.Win.Kind.ordinary, h.kind(h.wins[1]).?);
+    var entered: i64 = 0;
+    var focused: i64 = 0;
+    for (h.notes.items) |note| switch (note) {
+        .entered => |win| entered = win,
+        .float => |win| focused = win,
+        else => {},
+    };
+    try testing.expect(entered != 0 and entered != h.wins[0]);
+    try testing.expectEqual(entered, focused);
+}
+
 test "windows become external; the anchor stays hidden" {
     var buf: [1024]u8 = undefined;
     var h: Harness = .{ .nvim = Nvim.spawn(testing.io, &.{ "nvim", "--clean", "--embed", "-n" }, &buf) catch |err| switch (err) {
