@@ -261,7 +261,11 @@ local titles = {}
 
 local function title_of(win)
   local name = api.nvim_buf_get_name(api.nvim_win_get_buf(win)):gsub('/+$', '')
-  local t = name == '' and '[No Name]' or vim.fn.fnamemodify(name, ':t')
+  if name == '' then
+    name = api.nvim_win_call(win, vim.fn.getcwd)
+  end
+  local t = vim.fn.fnamemodify(name, ':t')
+  if t == '' then t = name end -- keep the filesystem root visible
   -- Rex takes up to 128 characters and no control characters
   t = t:gsub('%c', '')
   if vim.fn.strchars(t) > 128 then t = vim.fn.strcharpart(t, 0, 127) .. '…' end
@@ -292,7 +296,7 @@ local function schedule_titles()
     report_titles()
   end)
 end
-api.nvim_create_autocmd({ 'BufWinEnter', 'BufEnter', 'BufFilePost', 'BufWritePost', 'WinNew' }, {
+api.nvim_create_autocmd({ 'BufWinEnter', 'BufEnter', 'BufFilePost', 'BufWritePost', 'WinNew', 'DirChanged' }, {
   group = group,
   callback = schedule_titles,
 })

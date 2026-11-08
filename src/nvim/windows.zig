@@ -637,9 +637,9 @@ fn titleIs(h: *const Harness, win: i64, want: []const u8) bool {
     return if (h.titles.get(win)) |t| std.mem.eql(u8, t, want) else false;
 }
 
-test "each window's title is its file name" {
+test "each window's title uses its file name or working directory" {
     var buf: [1024]u8 = undefined;
-    var h: Harness = .{ .nvim = Nvim.spawn(testing.io, &.{ "nvim", "--clean", "--embed", "-n" }, &buf) catch |err| switch (err) {
+    var h: Harness = .{ .nvim = Nvim.spawn(testing.io, &.{ "nvim", "--clean", "--embed", "-n", "--cmd", "cd /tmp" }, &buf) catch |err| switch (err) {
         error.FileNotFound => return error.SkipZigTest,
         else => return err,
     } };
@@ -650,10 +650,17 @@ test "each window's title is its file name" {
 
     try testing.expect(try h.until(struct {
         fn f(x: *Harness) bool {
-            return x.wins[0] != 0 and titleIs(x, x.wins[0], "[No Name]");
+            return x.wins[0] != 0 and titleIs(x, x.wins[0], "tmp");
         }
     }.f));
     const first, const anchor = h.wins;
+    // An unnamed buffer follows changes to its window's working directory.
+    try h.input(":lcd /<CR>");
+    try testing.expect(try h.until(struct {
+        fn f(x: *Harness) bool {
+            return titleIs(x, x.wins[0], "/");
+        }
+    }.f));
     // a new buffer in the same window
     try h.input(":edit /tmp/neorex-dir/some file.txt<CR>");
     h.want = first;
